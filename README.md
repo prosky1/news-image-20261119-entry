@@ -1,8 +1,8 @@
 # THE WORLD TODAY — 19 November 2026
 
-[![make.fun](https://make.fun/badge.svg?competition=news-image-20261119)](https://make.fun/bounty/news-image-20261119)
-[![make.fun entry](https://make.fun/badge-entry.svg?competition=news-image-20261119)](https://make.fun/bounty/news-image-20261119)
-[![make.fun leaderboard](https://make.fun/badge-leaderboard.svg?competition=news-image-20261119)](https://make.fun/bounty/news-image-20261119)
+[![make.fun · news-image-20261119](https://make.fun/badge/news-image-20261119.svg)](https://make.fun/bounty/news-image-20261119)
+[![rank](https://make.fun/badge/news-image-20261119/prosky1/news-image-20261119-entry/rank.svg)](https://make.fun/bounty/news-image-20261119/leaderboard)
+[![reward](https://make.fun/badge/news-image-20261119/prosky1/news-image-20261119-entry/reward.svg)](https://make.fun/bounty/news-image-20261119)
 
 Probe entry for [news-image-20261119](https://make.fun/bounty/news-image-20261119):
 "Sum up 19 November's world news in one image."
