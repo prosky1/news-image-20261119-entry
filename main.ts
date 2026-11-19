@@ -6,6 +6,7 @@
  * two runs write identical bytes.
  */
 import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -49,4 +50,11 @@ if (width !== EXPECTED_WIDTH || height !== EXPECTED_HEIGHT) {
 
 mkdirSync(outDir, { recursive: true });
 copyFileSync(source, dest);
-console.log(`wrote ${dest} (${size} bytes, ${width}x${height})`);
+
+// Gate 4: the copy must be byte-identical to the source (determinism).
+const written = readFileSync(dest);
+const sha = (b) => createHash("sha256").update(b).digest("hex");
+if (sha(written) !== sha(buf)) {
+  throw new Error("output bytes differ from entry.png after copy");
+}
+console.log(`wrote ${dest} (${size} bytes, ${width}x${height}, sha256 ${sha(buf).slice(0, 12)})`);
