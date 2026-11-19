@@ -26,15 +26,21 @@ const size = statSync(source).size;
 if (size > MAX_BYTES) {
   throw new Error(`entry.png is ${size} bytes, over the 1 MiB limit`);
 }
+if (size < 24) {
+  throw new Error(`entry.png is only ${size} bytes, too small for a PNG header`);
+}
 
 // Gate 2: PNG magic bytes.
 if (!buf.subarray(0, 8).equals(PNG_MAGIC)) {
   throw new Error("entry.png is not a PNG (bad magic bytes)");
 }
 
-// Gate 3: IHDR says 1024x1024.
+// Gate 3: first chunk must be IHDR, and it must say 1024x1024.
 // PNG layout: 8-byte signature, then IHDR chunk (4-byte length, "IHDR",
 // 4-byte width BE, 4-byte height BE).
+if (buf.toString("ascii", 12, 16) !== "IHDR") {
+  throw new Error(`entry.png first chunk is ${buf.toString("ascii", 12, 16)}, expected IHDR`);
+}
 const width = buf.readUInt32BE(16);
 const height = buf.readUInt32BE(20);
 if (width !== EXPECTED_WIDTH || height !== EXPECTED_HEIGHT) {
