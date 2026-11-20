@@ -1,60 +1,92 @@
 /**
- * news-image-20261119 probe entry — @bosbuilds.
+ * news-image-20261119 MAIN entry.
  *
- * Gates the bundled front-page image (entry.png) and copies it to
- * /output/entry.png. Node 22 stdlib only, no network, deterministic:
- * two runs write identical bytes.
+ * Takes the front-page image built for this competition (entry.png, sitting
+ * next to this file), checks it is a well-formed 1024x1024 PNG under the
+ * 1 MiB cap, and places a copy at $MAKEFUN_OUTPUT_DIR/entry.png
+ * (default /output/entry.png). Node stdlib only; no network access.
+ * The copy is byte-for-byte the input, so repeated runs agree exactly.
  */
-import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const MAX_BYTES = 1024 * 1024;
-const EXPECTED_WIDTH = 1024;
-const EXPECTED_HEIGHT = 1024;
+const SIGNATURE = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+]);
+const SIZE_LIMIT = 1024 * 1024;
+const WANT_W = 1024;
+const WANT_H = 1024;
 
-const here = dirname(fileURLToPath(import.meta.url));
-const source = join(here, "entry.png");
-const outDir = "/output";
-const dest = join(outDir, "entry.png");
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const inputPath = join(scriptDir, "entry.png");
+const outputDir = process.env.MAKEFUN_OUTPUT_DIR || "/output";
+const outputPath = join(outputDir, "entry.png");
 
-const buf = readFileSync(source);
-
-// Gate 1: file size.
-const size = statSync(source).size;
-if (size > MAX_BYTES) {
-  throw new Error(`entry.png is ${size} bytes, over the 1 MiB limit`);
-}
-if (size < 24) {
-  throw new Error(`entry.png is only ${size} bytes, too small for a PNG header`);
+function sha256(buf) {
+  return createHash("sha256").update(buf).digest("hex");
 }
 
-// Gate 2: PNG magic bytes.
-if (!buf.subarray(0, 8).equals(PNG_MAGIC)) {
-  throw new Error("entry.png is not a PNG (bad magic bytes)");
+function checkSize(data) {
+  if (data.length > SIZE_LIMIT) {
+    throw new Error(
+      `entry.png is ${data.length} bytes, above the ${SIZE_LIMIT} byte cap`,
+    );
+  }
+  if (data.length < 33) {
+    throw new Error(
+      `entry.png is ${data.length} bytes, too short to be a PNG`,
+    );
+  }
 }
 
-// Gate 3: first chunk must be IHDR, and it must say 1024x1024.
-// PNG layout: 8-byte signature, then IHDR chunk (4-byte length, "IHDR",
-// 4-byte width BE, 4-byte height BE).
-if (buf.toString("ascii", 12, 16) !== "IHDR") {
-  throw new Error(`entry.png first chunk is ${buf.toString("ascii", 12, 16)}, expected IHDR`);
-}
-const width = buf.readUInt32BE(16);
-const height = buf.readUInt32BE(20);
-if (width !== EXPECTED_WIDTH || height !== EXPECTED_HEIGHT) {
-  throw new Error(`entry.png is ${width}x${height}, expected 1024x1024`);
+function checkSignature(data) {
+  if (!data.subarray(0, 8).equals(SIGNATURE)) {
+    throw new Error("entry.png does not start with the PNG signature");
+  }
 }
 
-mkdirSync(outDir, { recursive: true });
-copyFileSync(source, dest);
-
-// Gate 4: the copy must be byte-identical to the source (determinism).
-const written = readFileSync(dest);
-const sha = (b) => createHash("sha256").update(b).digest("hex");
-if (sha(written) !== sha(buf)) {
-  throw new Error("output bytes differ from entry.png after copy");
+function checkDimensions(data) {
+  // A PNG begins with an 8-byte signature, then the IHDR chunk: a 4-byte
+  // length, the letters IHDR, then width and height as 4-byte big-endian
+  // ints.
+  const firstChunk = data.toString("latin1", 12, 16);
+  if (firstChunk !== "IHDR") {
+    throw new Error(`first PNG chunk is ${firstChunk}, expected IHDR`);
+  }
+  const width = data.readUInt32BE(16);
+  const height = data.readUInt32BE(20);
+  if (width !== WANT_W || height !== WANT_H) {
+    throw new Error(`entry.png is ${width}x${height}, expected 1024x1024`);
+  }
+  return { width, height };
 }
-console.log(`wrote ${dest} (${size} bytes, ${width}x${height}, sha256 ${sha(buf).slice(0, 12)})`);
+
+function run() {
+  const data = readFileSync(inputPath);
+  checkSize(data);
+  checkSignature(data);
+  const { width, height } = checkDimensions(data);
+
+  mkdirSync(outputDir, { recursive: true });
+  copyFileSync(inputPath, outputPath);
+
+  // The copy must hash identically to the input; anything else means the
+  // write was interrupted or the filesystem mangled the bytes.
+  const written = readFileSync(outputPath);
+  if (sha256(written) !== sha256(data)) {
+    throw new Error("output bytes differ from entry.png after copy");
+  }
+  console.log(
+    `wrote ${outputPath} (${data.length} bytes, ${width}x${height}, ` +
+      `sha256 ${sha256(data).slice(0, 12)})`,
+  );
+}
+
+try {
+  run();
+} catch (err) {
+  console.error(`main.ts: ${err.message}`);
+  process.exitCode = 1;
+}
